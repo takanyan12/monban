@@ -1,0 +1,14 @@
+[Unit]
+Description=micro-monban Management Dashboard
+After=network.target
+
+[Service]
+Type=simple
+User=root
+EnvironmentFile=-/opt/gatekeeper/secret.conf
+ExecStart=/usr/bin/python3 /opt/gatekeeper/dashboard.py
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target

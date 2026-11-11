@@ -1,0 +1,44 @@
+# ==========================================================
+#  micro-monban: 公開リポジトリに絶対に入れないもの
+#  Never commit secrets, device-specific state, or logs.
+# ==========================================================
+
+# --- 秘密情報 / secrets ---
+secret.conf
+*.key
+*.pem
+ca.*
+server.crt
+alertmail.json
+*.token
+.env
+*.netrc
+kiosk.json
+
+# --- 装置ごとの状態 / device state ---
+whitelist.json
+guard.json
+wifi_mgmt.json
+breaker.json
+pii_guard.json
+report.json
+publish.json
+integrity_manifest.json
+report_state.json
+backup_*/
+*.bak*
+
+# --- ログ・記録 / logs and records ---
+*.log
+*.jsonl
+reports/
+session-export-*.zip
+会話記録*.zip
+
+# --- 作業用 / local working files ---
+__pycache__/
+*.pyc
+.DS_Store
+Thumbs.db
+desktop.ini
+*.swp

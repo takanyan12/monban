@@ -1,0 +1,55 @@
+#!/usr/sbin/nft -f
+# micro-monban: /etc/nftables.conf（導入スクリプトが @@...@@ を置き換えて配置）
+
+flush ruleset
+
+table inet filter {
+    # 許可リスト（ホワイトリスト：最優先許可）
+    set whitelist {
+        type ipv4_addr
+    }
+
+    # 自動遮断リスト（10分で自動解放）
+    set dynamic_blocks {
+        type ipv4_addr
+        flags timeout
+    }
+
+    # 外部側から管理画面（@@DASH_PORT@@番）への接続の開け閉め（ダッシュボードのスイッチが操作）
+    chain wifi_mgmt {
+    }
+
+    chain input {
+        type filter hook input priority filter; policy drop;
+
+        iif "lo" accept
+        iif "@@INT_IF@@" accept
+
+        # 【最優先】許可リストの IP は即時通過
+        ip saddr @whitelist accept
+
+        # 【自動遮断】遮断リストの IP は無言で破棄
+        ip saddr @dynamic_blocks drop
+
+        ct state established,related accept
+        ct state invalid drop
+        ip protocol icmp icmp type { echo-request, echo-reply } accept
+
+        # Web 中継（80/443）
+        iif "@@EXT_IF@@" tcp dport { 80, 443 } accept
+
+        # 管理 SSH（22）: 閉域は無制限、家庭 LAN は新規接続をレート制限（総当たり対策）
+        ip saddr @@INT_NET@@ tcp dport 22 accept
+        ip saddr @@HOME_NET@@ tcp dport 22 ct state new limit rate 6/minute burst 12 packets accept
+
+        @@DASH_JUMP@@
+    }
+
+    chain forward {
+        type filter hook forward priority filter; policy drop;
+    }
+
+    chain output {
+        type filter hook output priority filter; policy accept;
+    }
+}

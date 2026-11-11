@@ -1,0 +1,19 @@
+[Unit]
+Description=Gatekeeper PII Bulk Guard (micro-monban)
+After=network.target
+
+[Service]
+Type=simple
+User=www-data
+Group=www-data
+ExecStart=/usr/bin/python3 /opt/gatekeeper/pii_guard.py
+Restart=always
+RestartSec=2
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+ReadWritePaths=/var/lib/gatekeeper/pii
+
+[Install]
+WantedBy=multi-user.target

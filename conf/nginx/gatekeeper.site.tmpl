@@ -1,0 +1,61 @@
+# micro-monban: /etc/nginx/sites-available/gatekeeper（導入スクリプトが @@...@@ を置き換えて配置）
+#  ・80番 : 簡易WAF → Let's Encrypt の確認用の通り道 → それ以外は HTTPS(443) へ
+#  ・443番: 入口だけここに書き、本体（WAF・DLP・中継）は snippets/gatekeeper_https_body.conf
+#           （公開ドメイン用の sites-available/gatekeeper-public も同じ本体を使う）
+
+# WebSocket/SSE 対応: Upgrade 要求のときだけ Connection を upgrade にする（Smuggling 対策を維持）
+map $http_upgrade $connection_upgrade {
+    default upgrade;
+    ''      '';
+}
+
+# 通常の応答は個人情報ガード(127.0.0.1:8081)経由、WebSocket は直接バックエンドへ
+map $http_upgrade $gk_upstream {
+    default 127.0.0.1:8081;
+    "~."    @@BACKEND_IP@@:@@BACKEND_PORT@@;
+}
+
+# --- ポート80: WAF 検査のうえ HTTPS(443) へ導く ------------------------------
+server {
+    # IPv4 専用（listen [::] は IPv6 無効環境で bind 失敗するため使わない）
+    listen 80 default_server;
+
+    server_name _;
+    access_log /var/log/nginx/gatekeeper_access.log ai_watch;
+
+    # 入口検査：簡易WAF（HTTP で来ても検査してから HTTPS へ）
+    if ($http_user_agent ~* (sqlmap|nikto|wpscan|dirbuster|acunetix|masscan)) {
+        return 403 "Blocked by Gatekeeper WAF: Malicious scanner detected.\n";
+    }
+    # [v1.13.1] パストラバーサル（説明は snippets/gatekeeper_https_body.conf）
+    if ($request_uri ~* "(?:\.|%2e|%252e){2}(?:/|\x5c|%2f|%5c|%252f|%255c)") {
+        return 403 "Blocked by Gatekeeper WAF: Path traversal detected.\n";
+    }
+    if ($args ~* "(union(?:\+|%20|%09|%0a|%0d|%0b|%0c|/\*.*?\*/|%2f%2a.*?%2a%2f|\s)+(?:all(?:\+|%20|%09|%0a|%0d|%0b|%0c|/\*.*?\*/|%2f%2a.*?%2a%2f|\s)+)?select|information_schema|order(?:\+|%20|%09|%0a|%0d|%0b|%0c|/\*.*?\*/|%2f%2a.*?%2a%2f|\s)+by(?:\+|%20|%09|%0a|%0d|%0b|%0c|/\*.*?\*/|%2f%2a.*?%2a%2f|\s)+[0-9]+\b|waitfor(?:\+|%20|%09|%0a|%0d|%0b|%0c|/\*.*?\*/|%2f%2a.*?%2a%2f|\s)+delay|benchmark(?:\s|\+|%20|%09)*(?:\(|%28)|sleep(?:\s|\+|%20|%09)*(?:\(|%28))") {
+        return 403 "Blocked by Gatekeeper WAF: SQL injection pattern detected.\n";
+    }
+
+    # Let's Encrypt の証明書確認用（HTTPS へ転送する前に答える）
+    location ^~ /.well-known/acme-challenge/ {
+        root /var/www/acme;
+        default_type text/plain;
+        try_files $uri =404;
+    }
+    location / {
+        return 308 https://$host$request_uri;
+    }
+}
+
+# --- ポート443: TLS 終端 + WAF + DLP（本体は snippets に） ---------------------
+# TLS は門番自身が終端し、ほどいた平文に対して DLP で検査してから暗号化して返す。
+# 門番 → バックエンドは物理的に隔離された閉域区間なので平文 HTTP。
+server {
+    listen 443 ssl default_server;
+
+    server_name _;
+    access_log /var/log/nginx/gatekeeper_access.log ai_watch;
+
+    ssl_certificate     /opt/gatekeeper/tls/server.crt;
+    ssl_certificate_key /opt/gatekeeper/tls/server.key;
+    include /etc/nginx/snippets/gatekeeper_https_body.conf;
+}

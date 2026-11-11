@@ -1,0 +1,17 @@
+[
+  {"id":"sqlstate","name":"DB例外 (SQLSTATE)","pattern":"SQLSTATE\\[[A-Z0-9]+\\]","replacement":"[SQL_ERROR_SUPPRESSED]","enabled":true,"builtin":true},
+  {"id":"php_fatal","name":"PHP Fatal error","pattern":"Fatal error:.*","replacement":"[SYSTEM_EXCEPTION_HIDDEN]","enabled":true,"builtin":true},
+  {"id":"phone_jp","name":"電話番号","pattern":"\\b\\d{2,4}-\\d{2,4}-\\d{4}\\b","replacement":"[PHONE_NUMBER_PROTECTED]","enabled":true,"builtin":true},
+  {"id":"stripe_key","name":"API秘密鍵 (sk_live)","pattern":"sk_live_[a-zA-Z0-9]+","replacement":"sk_live_****************","enabled":true,"builtin":true},
+  {"id":"jwt","name":"JWTトークン","pattern":"eyJ[A-Za-z0-9_-]+\\.eyJ[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]+","replacement":"[JWT_REDACTED]","enabled":true,"builtin":true},
+  {"id":"aws_key","name":"AWSアクセスキー (AKIA)","pattern":"AKIA[0-9A-Z]{16}","replacement":"[AWS_KEY_REDACTED]","enabled":true,"builtin":true},
+  {"id":"github_token","name":"GitHubトークン (ghp_等)","pattern":"gh[pousr]_[A-Za-z0-9]{20,255}","replacement":"[GITHUB_TOKEN_REDACTED]","enabled":true,"builtin":true},
+  {"id":"json_cred","name":"JSON資格情報キー一括 (password/token/secret等)","pattern":"\"(password|passwd|pwd|token|secret|api_key|apikey|access_token|refresh_token|client_secret)\"\\s*:\\s*\"[^\"]*\"","replacement":"\"$1\":\"[REDACTED]\"","enabled":true,"builtin":true},
+  {"id":"html_cred","name":"HTMLエスケープされた資格情報 (&quot;password&quot; 等)","pattern":"&(?:quot|#34|#x22).(password|passwd|pwd|token|secret|api_key|apikey|access_token|refresh_token|client_secret)&(?:quot|#34|#x22).\\s*:\\s*&(?:quot|#34|#x22).[^&]*&(?:quot|#34|#x22).","replacement":"[CREDENTIAL_REDACTED]","enabled":true,"builtin":true},
+  {"id":"db_conn","name":"DB接続文字列","pattern":"(mysql|postgres|postgresql|mongodb(\\+srv)?|redis|amqp)://[^\\s\"]+","replacement":"[DB_CONNECTION_HIDDEN]","enabled":true,"builtin":true},
+  {"id":"private_key","name":"秘密鍵ヘッダ","pattern":"-----BEGIN [A-Z ]*PRIVATE KEY-----","replacement":"[PRIVATE_KEY_BLOCKED]","enabled":true,"builtin":true},
+  {"id":"internal_ip","name":"内部IPアドレス漏洩","pattern":"\\b(10\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}|192\\.168\\.\\d{1,3}\\.\\d{1,3}|172\\.(1[6-9]|2[0-9]|3[01])\\.\\d{1,3}\\.\\d{1,3})\\b","replacement":"[INTERNAL_IP_HIDDEN]","enabled":false,"builtin":true},
+  {"id":"email","name":"メールアドレス","pattern":"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}","replacement":"[EMAIL_HIDDEN]","enabled":false,"builtin":true},
+  {"id":"my_number","name":"マイナンバー様式 (9999-9999-9999)","pattern":"\\b[1-9][0-9]{3}-[0-9]{4}-[0-9]{4}\\b","replacement":"[MY_NUMBER_REDACTED]","enabled":false,"builtin":true},
+  {"id":"credit_card","name":"クレジットカード番号","pattern":"\\b(?:4[0-9]{12}(?:[0-9]{3})?|5[1-5][0-9]{14}|3[47][0-9]{13}|6(?:011|5[0-9]{2})[0-9]{12})\\b","replacement":"[CARD_NUMBER_REDACTED]","enabled":false,"builtin":true}
+]

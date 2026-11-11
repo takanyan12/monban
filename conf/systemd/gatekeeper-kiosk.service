@@ -1,0 +1,13 @@
+[Unit]
+Description=micro-monban Screen Server (dashboard and settings for the HDMI touch screen, 127.0.0.1 only)
+After=network.target gatekeeper-dashboard.service
+
+[Service]
+Type=simple
+User=root
+ExecStart=/usr/bin/python3 /opt/gatekeeper/kiosk.py
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target
