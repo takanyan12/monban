@@ -1,3 +1,6 @@
+# どの PC で取得しても改行を変えない（既定は LF 固定。Windows の自動変換で照合が合わなくなるのを防ぐ）
+* text=auto eol=lf
+
 # Raspberry Pi で動かすものは LF 固定（CRLF だと bash / python が壊れる）
 *.sh      text eol=lf
 *.py      text eol=lf
