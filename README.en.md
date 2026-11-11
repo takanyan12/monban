@@ -1,76 +1,140 @@
 # micro-monban
 
-**A small but strong gatekeeper built on a Raspberry Pi.**
-Put one Raspberry Pi in front of a home or small-office server to **reinforce** — not replace — your router and firewall.
+**Just plug it in between your LAN and your server. One Raspberry Pi takes your server's protection up a level.**
 
-[日本語 README](README.md) · Version: v1.14.3 · License: [Apache-2.0](LICENSE)
+micro-monban ("monban" means *gatekeeper* in Japanese) watches the part that routers, firewalls and Cloudflare leave open: **the last step in front of your server, and the data going back out**.
+From home servers to small-business and on-premises servers — a **low-cost gatekeeper with a dashboard and easy maintenance**.
 
-> ⚠ **This is an experimental project.** It is developed by an individual, is not a certified product, and comes with no warranty.
-> Read "[What it protects — and what it doesn't](#what-it-protects--and-what-it-doesnt)" before using it in production.
+[日本語 README](README.md) · Version: v1.14.3 · License: [Apache-2.0](LICENSE) (free, modify as you like)
 
 > ℹ The dashboard UI and log messages are in **Japanese**. This English documentation explains what each part does.
 
 ---
 
-## What is it?
+## Highlights
 
-Your server is **not** connected to the internet or your home LAN directly. Instead it sits in a **closed segment with a single cable** behind the gatekeeper (a Raspberry Pi).
-The only path from the outside to the server is the gatekeeper's reverse proxy (nginx), which inspects both what comes in and what goes out.
+| Feature | What it means |
+| --- | --- |
+| 🔌 **Just plug it in** | Place it between your LAN and the server and move one cable. Your server software stays almost as it is |
+| 💰 **Low cost** | Free software on a Raspberry Pi kit — far cheaper than dedicated appliances or monthly services |
+| 🛡️ **Guards the way in *and* out** | Blocks attacks on the way in, and stops passwords, keys and personal data from **leaking out** |
+| 🖥️ **Dashboard included** | A browser dashboard and an on-device HDMI touch screen. Certificates via a step-by-step wizard |
+| 🔧 **Easy maintenance** | It's just a Raspberry Pi. Swap in a spare SD card, replace the whole Pi, or reset and reinstall — done |
+| 📖 **Anyone can run it** | One installer script, docs in Japanese and English, and a self-test of about 40 checks |
+
+## Why a gatekeeper?
+
+Routers, firewalls and Cloudflare are all important *outer doors*.
+But something that **looks inside the traffic right in front of your server, and watches what goes back out**, is often missing. micro-monban fills that gap.
+
+| What you want to protect | Router / FW | Cloudflare | **micro-monban** |
+| --- | :---: | :---: | :---: |
+| Close unused ports | ◎ | ○ | ◎ |
+| Absorb large DDoS floods | – | ◎ | – |
+| Stop SQL injection and path traversal | – | ○ | ◎ |
+| Auto-block scanners and suspicious behavior | – | ○ | ◎ |
+| **Mask passwords, keys and error details** leaking in responses | – | △ | ◎ |
+| **Stop bulk exfiltration of personal data** | – | △ | ◎ |
+| **Isolate the server** from your home / office LAN | △ | – | ◎ |
+| **Watch its own configuration** for tampering | – | – | ◎ |
+| Runs entirely on your premises (no monthly fee) | ◎ | △ | ◎ |
+
+◎ strong ○ capable △ conditional / paid plans – not its role
+
+**Best used together**: let your router or Cloudflare handle the wide outer defense, and micro-monban the fine-grained defense right in front of the server. Layering makes you much safer.
+
+## Who it's for
+
+- 🏠 **Home servers** you want to publish (blogs, websites, photo sharing)
+- 🏢 **Small businesses and offices** that want solid protection for web servers and internal systems at a modest cost
+- 🤖 **Local AI (e.g. Ollama)** and internal tools you don't want exposed directly to the internet or the LAN
+- 🧪 Development and test servers you want to show to the outside safely
+
+## How it works
+
+The server sits in a **closed segment behind the gatekeeper, on a single Ethernet cable**. The only way in is through the gatekeeper's proxy, which inspects traffic in both directions.
 
 ```
 [Internet]
-    │
-[Router]  ← home LAN (e.g. 192.168.1.0/24)
-    │
-    ├── Gatekeeper (Raspberry Pi), outer side … only ports 80/443 exposed
-    │        │  inbound: simple WAF, auto-blocking   outbound: DLP masking, PII bulk-exfiltration guard
-    │        │
-    │   Gatekeeper inner side 10.0.0.1 ── one cable, closed segment 10.0.0.0/24 ──
-    │                                        │
-    │                                Backend PC 10.0.0.2 (web app on 8080, etc.)
-    │
-    └── Admin PC (dashboard, SSH)
+     │
+[Router]  ← home / office LAN
+     │
+     ├── micro-monban (Raspberry Pi 5)  … only ports 80/443 exposed
+     │        │  inbound: WAF, auto-blocking   outbound: DLP masking, personal-data guard
+     │        │
+     │   closed segment on one cable (10.0.0.0/24)
+     │        │
+     │   your server (web app, AI, …)
+     │
+     └── admin PC (dashboard)
 ```
 
-## Features
+## Defenses at a glance
 
-| Area | Features |
-| --- | --- |
-| Inbound | nftables (everything except 80/443 is dropped), SSH brute-force auto-blocking, simple WAF (scanners, path traversal, SQL injection), behavior scoring with automatic 10-minute blocks |
-| Outbound | **DLP**: masks secrets in responses (API keys, tokens, DB errors, phone numbers, …). **PII bulk-exfiltration guard**: blocks responses that carry more than a few personal records, per response and per 10 minutes |
-| Self-defense | Tamper detection of key files, detection of unexpected outbound connections / listening ports, emergency breaker (cut external access / isolate backend with one click) |
-| Operations | HTTPS dashboard, email alerts, **handover report** (full status in one document, emailed weekly / on change), **internet publishing wizard** (Let's Encrypt / Cloudflare Tunnel) |
-| On-device screen | **Dashboard and settings for an HDMI touch monitor** (initial password change, Wi-Fi, switches, unblock, mail, self-test; auto-lock after 5 minutes) |
+### 🚪 Inbound
+- Firewall that only allows ports 80/443 (nftables)
+- Lightweight WAF: turns away SQL injection, path traversal and scanner user agents
+- Hidden-file probes (`.env`, `.git`, …) get a 404 before reaching the server
+- SSH brute-force auto-blocking
+- **Behavior analysis**: scores clients by error rate and request timing, and auto-blocks suspicious ones
+- Slow, stealthy scans detected over a one-hour window
+
+### 📤 Outbound
+- **DLP**: masks API keys, tokens, passwords, database errors, phone numbers and more in responses (15 rules, editable in the dashboard)
+- **Personal-data bulk-exfiltration guard**: counts emails, phone and card numbers, Japanese My Number IDs and addresses, and stops large leaks
+- Detects large data dumps and error bursts
+
+### 🔍 Self-defense
+- Checks critical config files for tampering every 5 minutes
+- Detects unexpected outbound connections and listening ports
+- **Emergency breaker**: close the internet entrance or cut off the server with one click
+
+### 🔐 Certificates and publishing
+- Let's Encrypt certificates obtained and renewed automatically
+- Works even when your ISP blocks port 80, via MyDNS DNS validation
+- Cloudflare Tunnel supported
+
+### 📨 Notifications
+- Email alerts on incidents
+- **Handover report**: the whole configuration in one document, emailed on a schedule
+
+## Configure it on screen
+
+- **Dashboard (browser)**: see protection status, blocked clients and alert history at a glance. Toggle switches, manage the allow list, set up email alerts and run the publishing wizard.
+- **On-device screen (HDMI touch monitor)**: check status and change Wi-Fi and other settings without a PC. Auto-locks after 5 minutes and asks you to change the initial password.
+- **Publishing wizard**: enter your domain, run the pre-check, then "issue and publish". Renewal is automatic, with a dry-run button.
+
+## Easy maintenance
+
+- **If something goes wrong**: swap in a spare SD card. If the Pi itself fails, move the card to a new Pi. A tool to make spare cards is included.
+- **Reset and reinstall**: the uninstall script restores the system, then run the installer again. There is a procedure for forgotten dashboard passwords, too.
+- **Day to day, just watch**: alerts arrive by email and certificates renew themselves. `--verify` and the self-test confirm the defenses are working at any time.
 
 ## What it protects — and what it doesn't
 
-**It helps with**
-- The architecture itself: the server is never exposed directly (closed segment, no forwarding, only 80/443 inbound)
-- Common automated attacks (scanners, simple SQL injection and path traversal, SSH brute force)
-- Some outbound leaks caused by application bugs (masking of keys/tokens/DB errors/phone numbers; stopping bulk PII responses)
+**It protects**
+- The architecture itself: the server is never directly exposed (closed segment, no forwarding, only 80/443 inbound)
+- Common automated attacks (scanners, SQL injection and path traversal, hidden-file probes, SSH brute force)
+- Many outbound leaks caused by application bugs (masking keys, tokens, DB errors and phone numbers; stopping bulk personal-data responses)
 
-**It does not / limitations**
-- **Large DDoS attacks**: one Pi on a home connection cannot absorb them. Put Cloudflare or similar in front if needed.
-- **The WAF is basic** — a handful of regular expressions, not a comprehensive commercial WAF.
-- **Request bodies (POST payloads) are not inspected.**
-- DLP and the PII guard are **heuristics**. Both false negatives and false positives happen (e.g. a list of names alone is not counted; a 12-digit ID may be mistaken for a Japanese My Number).
-- **Single device.** If the Pi or SD card fails, the site goes down. Keep a spare and a recovery plan.
+**Limits**
+- **Large DDoS attacks**: one Pi and your connection cannot absorb them. Put Cloudflare or similar in front if needed.
+- **The WAF is lightweight** — not as comprehensive as a commercial WAF.
+- **Request bodies (POST data) are not inspected.**
+- DLP and the personal-data guard are **heuristic**; misses and false positives happen.
+- **Single device**: keep a spare SD card or Pi for quick recovery.
 - **IPv4 only.**
-- You are responsible for operations (OS updates, responding to alerts, keeping logs).
-
-> 💡 Recommended: let Cloudflare handle the broad outer protection (DDoS, large WAF, certificates) and let micro-monban handle the fine-grained inner protection (app-specific inspection, PII guard, self-monitoring).
-
-> 🇯🇵 Some features are tuned for Japan (Japanese phone numbers, My Number, prefecture-based address detection). Contributions for other locales are welcome.
+- OS updates and responding to alerts are up to you (the docs explain how).
 
 ## Requirements
 
-- **Raspberry Pi 5** (development/test device; other models untested) and a microSD card (16 GB+)
+- **Raspberry Pi 5** and a microSD card (16 GB or more)
 - **Raspberry Pi OS (64-bit, Bookworm or later)**
-- The built-in Ethernet port for the closed side (the outer side uses Wi-Fi or a USB Ethernet adapter)
-- A backend PC (Windows or Linux) and one LAN cable
-- To publish on the internet: your own domain name
+- One wired LAN port (server side); Wi-Fi or a USB LAN adapter for the outer side
+- A server PC (Windows or Linux) and one Ethernet cable
+- To publish on the internet: a domain (a free dynamic DNS name works)
 
-## Installation (overview)
+## Installation overview
 
 ```bash
 git clone https://github.com/takanyan12/monban.git micro-monban
@@ -78,47 +142,48 @@ cd micro-monban
 nano install/setup-gatekeeper.sh        # edit the settings block at the top (HOME_NET, etc.)
 sudo bash install/setup-gatekeeper.sh
 sudo bash install/setup-gatekeeper.sh --verify
+sudo bash tests/selftest.sh
 ```
 
-1. Install Raspberry Pi OS and enable SSH
-2. Clone this repository on the Pi, edit the settings block, run the installer (**write down the dashboard password it prints**)
-3. Configure the backend PC (on Windows, run `backend/setup-windows.bat` as Administrator)
-4. Move the CA key `ca.key` off the Pi (USB stick, etc.) and delete it from the Pi
+1. Install the OS on the Pi and enable SSH
+2. Put this repository on the Pi, adjust the settings block and run the installer (**write down the dashboard password it prints**)
+3. Configure the server PC (on Windows, run `backend/setup-windows.bat` as administrator)
+4. Move the CA key `ca.key` to a USB stick and delete it from the Pi
 
-See the [Installation guide](docs/en/install.md) for details.
+See the [installation guide](docs/en/install.md) for details.
 
 ## Documentation
 
 | Document | Contents |
 | --- | --- |
-| [Installation guide](docs/en/install.md) | From OS setup to self-test and certificates |
-| [Backend PC setup](docs/en/backend.md) | Windows (PHP, Ollama, firewall) / Linux |
-| [Operation guide](docs/en/operation.md) | What each dashboard card means |
-| [Publishing to the internet](docs/en/publish.md) | Let's Encrypt and Cloudflare Tunnel |
+| [Installation guide](docs/en/install.md) | From OS setup to installation, self-check and certificates |
+| [Server PC setup](docs/en/backend.md) | Windows (PHP, Ollama, firewall) / Linux, sample page |
+| [Operation guide](docs/en/operation.md) | What each dashboard card means and how to use it |
+| [Publishing to the internet](docs/en/publish.md) | Let's Encrypt (port 80 / MyDNS DNS) and Cloudflare Tunnel |
 | [On-device screen (HDMI monitor)](docs/en/kiosk.md) | View status and change settings on the device |
-| [Troubleshooting](docs/en/troubleshooting.md) | Common symptoms and fixes |
-| [Changelog](CHANGELOG.md) | Changes by version |
+| [Troubleshooting](docs/en/troubleshooting.md) | Common symptoms, fixes and forgotten passwords |
+| [Changelog](CHANGELOG.md) | Changes per version |
 
 ## Repository layout
 
 ```
-install/   installer and uninstaller
-src/       dashboard (dashboard.py), PII guard (pii_guard.py), on-device screen (kiosk.py, kiosk.html)
-conf/      nginx / nftables / systemd templates, default DLP rules
-backend/   backend PC setup scripts (Windows / Linux)
+install/   install and uninstall scripts
+src/       dashboard (dashboard.py), personal-data guard (pii_guard.py), on-device screen (kiosk.py, kiosk.html)
+conf/      templates for nginx, nftables and systemd, default DLP rules, certificate scripts
+backend/   setup scripts for the server PC (Windows / Linux) and a sample page
 tools/     health check, on-device screen setup, SD clone and backup, Let's Encrypt via MyDNS DNS, read-only mode, A/B recovery (experimental), SHA256SUMS generator
-tests/     self-test (selftest.sh), DLP test page (fake values only)
-docs/      documentation (Japanese / English)
+tests/     self-test (selftest.sh), DLP test page (fictitious values only)
+docs/      documentation (Japanese and English)
 ```
 
-## Security issues
+## Reporting security issues
 
-Please do not open a public issue. Report privately as described in [SECURITY.md](SECURITY.md).
+Please do not open a public issue. Report privately as described in [SECURITY.md](SECURITY.md) (Security tab → "Report a vulnerability").
 
 ## Author and license
 
-- Concept and design: **AiLab-Japan** (sole proprietorship, Japan)
-- Developed with the assistance of AI tools.
-- License: [Apache License 2.0](LICENSE) (see also [NOTICE](NOTICE))
+- Concept and design: **AiLab-Japan** (sole proprietorship). Developed with the help of AI tools.
+- License: [Apache License 2.0](LICENSE) (see also [NOTICE](NOTICE)). Free to use, modify and redistribute.
+- Provided without warranty. Please read "[What it protects — and what it doesn't](#what-it-protects--and-what-it-doesnt)" before using it in production.
 
-Pull requests are welcome. This project is maintained by one person, so replies may take some time.
+Feedback and improvements (issues and pull requests) are welcome. As this is run by an individual, replies may take some time.
